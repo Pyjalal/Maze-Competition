@@ -173,6 +173,28 @@ const int fastSpeed = 200;
 Encoder enc(ENC_PIN_A, ENC_PIN_B);
 
 // ======================
+// Debug Function: debugPrintMaze()
+// This function prints the maze mapping stored in the wallsGrid array.
+// Each cell is printed as a 4-bit binary number (order: N, E, S, W)
+void debugPrintMaze() {
+  Serial.println("Maze bit array (N, E, S, W):");
+  // Loop from top row to bottom row for a more natural view.
+  for (int y = MAZE_SIZE - 1; y >= 0; y--) {
+    for (int x = 0; x < MAZE_SIZE; x++) {
+      char buf[5];
+      // Bits: bit0 = North, bit1 = East, bit2 = South, bit3 = West.
+      for (int b = 0; b < 4; b++) {
+        buf[b] = (wallsGrid[y][x] & (1 << b)) ? '1' : '0';
+      }
+      buf[4] = '\0';
+      Serial.print(buf);
+      Serial.print(" ");
+    }
+    Serial.println();
+  }
+}
+
+// ======================
 // Function: scanWalls()
 // Reads the ultrasonic sensors and updates wall information for the current cell.
 void scanWalls() {
@@ -511,6 +533,8 @@ void loop() {
         }
       }
       Serial.println("Maze data saved to EEPROM.");
+      // Debug print of the maze bit array
+      debugPrintMaze();
       // Prepare for a fast run using the known maze.
       computeDistances(GOAL_X, GOAL_Y);
       posX = START_X; posY = START_Y;
