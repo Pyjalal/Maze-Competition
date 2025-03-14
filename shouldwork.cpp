@@ -14,8 +14,8 @@ bool reachedGoal = false;
 bool isStuck = false;
 bool visited[MAZE_SIZE][MAZE_SIZE] = {false};  // Prevent infinite loops
 
-// Global flag for movement (added)
-bool isMoving = false;
+// Known walls in the maze
+bool knownWalls[MAZE_SIZE][MAZE_SIZE] = {false};
 
 /***** Flood Fill Storage *****/
 int distanceGrid[MAZE_SIZE][MAZE_SIZE];  // Flood Fill grid
@@ -53,6 +53,7 @@ int leftSpeedVal;
 int rightSpeedVal;
 bool isReachPoint = false;
 
+// Motor control functions:
 void resetMotor1(){
   digitalWrite(motor1A, LOW);
   digitalWrite(motor1B, LOW);
@@ -172,7 +173,7 @@ void update(){
   Serial.print("Angle: ");
   Serial.println(angle);
 }
-// alignWithIMU() removed as requested
+// alignWithIMU() removed as per request
 
 /***** Time Tracking for Stuck Detection *****/
 unsigned long lastMoveTime = millis();
@@ -533,11 +534,54 @@ void updateMazeMemory() {
   }
 }
 
+/***** Choose Best Action (ε-Greedy) *****/
+int chooseBestAction(int x, int y) {
+  if (random(0, 100) < EXPLORATION_RATE * 100)
+    return random(0, 4);
+  int bestAction = 0;
+  int16_t maxQ = -1000;
+  for (int i = 0; i < 4; i++) {
+    if (Q_table[x][y][i] > maxQ) {
+      maxQ = Q_table[x][y][i];
+      bestAction = i;
+    }
+  }
+  return bestAction;
+}
+
+/***** Q-Learning Update *****/
+void updateQTable(int prevX, int prevY, int action, float reward) {
+  int bestNextAction = chooseBestAction(posX, posY);
+  int16_t maxNextQ = Q_table[posX][posY][bestNextAction];
+  float updateValue = LEARNING_RATE * (reward + DISCOUNT_FACTOR * maxNextQ - Q_table[prevX][prevY][action]);
+  Q_table[prevX][prevY][action] += (int16_t)updateValue;
+  if (distanceGrid[START_X][START_Y] < previousBestDistance) {
+    saveQTable();
+    previousBestDistance = distanceGrid[START_X][START_Y];
+  }
+}
+
+/***** Update Learning Rates (Decay) *****/
+void updateLearningRates() {
+  LEARNING_RATE = max(LEARNING_RATE * 0.99, MIN_LEARNING_RATE);
+  EXPLORATION_RATE = max(EXPLORATION_RATE * 0.98, 0.1);
+}
+
+/***** Collision Avoidance *****/
+void avoidCollisions() {
+  long ultrasonicResult = readUltrasonic(TRIG_FRONT, ECHO_FRONT);
+  if ((getMovingDistance() > 30 && int(ultrasonicResult) % 27 <= 4) || ultrasonicResult < 6) {
+    Serial.println("🚨 Stopping to avoid collision!");
+    stopMotors();
+    isMoving = false;
+  }
+}
+
 /***** Main Robot Movement Function *****/
 void moveRobot() {
   if (reachedGoal) return;
   
-  // Prevent loops by checking if cell was visited:
+  // Prevent infinite loops: backtrack if already visited:
   if (visited[posX][posY]) {
     Serial.println("Already visited; backtracking...");
     backtrack();
