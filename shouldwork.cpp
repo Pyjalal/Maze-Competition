@@ -9,16 +9,16 @@ const int MAZE_SIZE = 8;
 const int START_X = 0, START_Y = 0;
 const int GOAL_X = MAZE_SIZE - 1, GOAL_Y = MAZE_SIZE - 1;
 int posX = START_X, posY = START_Y;
-int curDir = 0; // 0 = NORTH, 1 = EAST, 2 = SOUTH, 3 = WEST
+int curDir = 0; // 0=NORTH, 1=EAST, 2=SOUTH, 3=WEST
 bool reachedGoal = false;
 bool isStuck = false;
-bool visited[MAZE_SIZE][MAZE_SIZE] = {false};  // Prevent infinite loops
+bool visited[MAZE_SIZE][MAZE_SIZE] = {false};  // To prevent infinite loops
 
 /***** Flood Fill Storage *****/
 int distanceGrid[MAZE_SIZE][MAZE_SIZE];  // Flood Fill grid
 int backtrackX[100], backtrackY[100];      // For backtracking
 int backtrackIndex = 0;
-int previousBestDistance = 9999;           // For saving Q-table when improvement occurs
+int previousBestDistance = 9999;           // For EEPROM Q-table saving
 
 /***** Q-Learning Variables (Memory-Optimized) *****/
 // Q_table stored as int16_t (fixed-point style)
@@ -37,7 +37,7 @@ const int WALL_DISTANCE_CM = 15;
 const int ALIGN_THRESHOLD = 3;   // in cm
 
 /***** Motor & Encoder Setup *****/
-// Motor control pins and direction (from your provided code):
+// Motor control pins (provided)
 #define motor1Speed 10
 #define motor2Speed 11
 #define motor1A A0
@@ -120,7 +120,7 @@ const int TRIG_LEFT = 8, ECHO_LEFT = 11;
 const int TRIG_RIGHT = 12, ECHO_RIGHT = 13;
 
 /***** IMU Setup & Functions *****/
-// MPU6050 using your provided code
+// MPU6050 using provided code
 const int MPU = 0x68; // MPU6050 I2C address
 float elapsedTime, currentTime, previousTime;
 float GyroErrorZ;
@@ -169,11 +169,7 @@ void update(){
   Serial.print("Angle: ");
   Serial.println(angle);
 }
-void alignWithIMU(){
-  update();
-  Serial.println("Aligning with IMU...");
-  // Stub: Adjust motor outputs based on (angle - targetAngle) if needed.
-}
+// Removed alignWithIMU as requested
 
 /***** Time Tracking for Stuck Detection *****/
 unsigned long lastMoveTime = millis();
@@ -353,7 +349,7 @@ float distanceArr[3] = {0, 0, 0}; // For left/right sensor readings
 void moveForwardAfterTurn(){
     current = millis();
     while(true){
-        update();
+        update();  // Update IMU values
         float requiredAngle;
         if(isTurnRight){
             requiredAngle = targetAngle - angle;
@@ -374,10 +370,11 @@ void moveForwardAfterTurn(){
                         if(targetAngle < 0){
                             if(angle - targetAngle < -5){
                                 Serial.println("Align Left");
-                                alignWithIMU();
+                                // Instead of alignWithIMU(), update IMU reading only
+                                update();
                             } else if(angle - targetAngle > 5){
                                 Serial.println("Align Right");
-                                alignWithIMU();
+                                update();
                             } else {
                                 Serial.println("Move Forward");
                                 moveForward();
@@ -385,10 +382,10 @@ void moveForwardAfterTurn(){
                         } else {
                             if(angle - targetAngle > 5){
                                 Serial.println("Align Right");
-                                alignWithIMU();
+                                update();
                             } else if(angle - targetAngle < -5){
                                 Serial.println("Align Left");
-                                alignWithIMU();
+                                update();
                             } else {
                                 Serial.println("Move Forward");
                                 moveForward();
@@ -420,10 +417,10 @@ void moveForwardAfterTurn(){
                     if(distanceArr[0] < mazeWidth && distanceArr[1] < mazeWidth){
                         if(distanceArr[0] - distanceArr[1] < -3){
                           Serial.println("Align Right");
-                          alignWithIMU();
+                          update();
                         } else if(distanceArr[0] - distanceArr[1] > 3){
                           Serial.println("Align Left");
-                          alignWithIMU();
+                          update();
                         } else {
                           Serial.println("Move Forward");
                           moveForward();
@@ -431,10 +428,10 @@ void moveForwardAfterTurn(){
                     } else if(distanceArr[0] < mazeWidth && distanceArr[1] > mazeWidth){
                         if(distanceArr[0] < 6){
                           Serial.println("Align Right");
-                          alignWithIMU();
+                          update();
                         } else if(distanceArr[0] > 8){
                           Serial.println("Align Left");
-                          alignWithIMU();
+                          update();
                         } else {
                           Serial.println("Move Forward");
                           moveForward();
@@ -442,10 +439,10 @@ void moveForwardAfterTurn(){
                     } else if(distanceArr[0] > mazeWidth && distanceArr[1] < mazeWidth){
                         if(distanceArr[1] < 6){
                           Serial.println("Align Left");
-                          alignWithIMU();
+                          update();
                         } else if(distanceArr[1] > 8){
                           Serial.println("Align Right");
-                          alignWithIMU();
+                          update();
                         } else {
                           Serial.println("Move Forward");
                           moveForward();
@@ -456,10 +453,10 @@ void moveForwardAfterTurn(){
                         if(angle < 0){
                             if(angle - targetAngle < -10){
                                 Serial.println("Align Left");
-                                alignWithIMU();
+                                update();
                             } else if(angle - targetAngle > 10){
                                 Serial.println("Align Right");
-                                alignWithIMU();
+                                update();
                             } else {
                                 Serial.println("Move Forward");
                                 moveForward();
@@ -467,10 +464,10 @@ void moveForwardAfterTurn(){
                         } else {
                             if(angle - targetAngle > 5){
                                 Serial.println("Align Right");
-                                alignWithIMU();
+                                update();
                             } else if(angle - targetAngle < -5){
                                 Serial.println("Align Left");
-                                alignWithIMU();
+                                update();
                             } else {
                                 Serial.println("Move Forward");
                                 moveForward();
@@ -526,20 +523,16 @@ void backtrack() {
   }
 }
 
-/***** alignWithIMU *****/
-void alignWithIMU() {
-  update();
-  Serial.println("Aligning with IMU...");
-  // Stub: Adjust motor outputs based on (angle - targetAngle) if needed.
-}
+/***** IMU-Based Alignment *****/
+// alignWithIMU() has been removed as per request
 
-/***** updateLearningRates *****/
+/***** Update Learning Rates (Decay) *****/
 void updateLearningRates() {
   LEARNING_RATE = max(LEARNING_RATE * 0.99, MIN_LEARNING_RATE);
   EXPLORATION_RATE = max(EXPLORATION_RATE * 0.98, 0.1);
 }
 
-/***** avoidCollisions *****/
+/***** Collision Avoidance *****/
 void avoidCollisions() {
   long ultrasonicResult = readUltrasonic(TRIG_FRONT, ECHO_FRONT);
   if ((getMovingDistance() > 30 && int(ultrasonicResult) % 27 <= 4) || ultrasonicResult < 6) {
@@ -549,11 +542,11 @@ void avoidCollisions() {
   }
 }
 
-/***** Main moveRobot Function *****/
+/***** Main Robot Movement Function *****/
 void moveRobot() {
   if (reachedGoal) return;
   
-  // Prevent infinite loops by checking if cell was visited:
+  // Prevent loops: backtrack if already visited
   if (visited[posX][posY]) {
     Serial.println("Already visited; backtracking...");
     backtrack();
@@ -607,7 +600,7 @@ void moveRobot() {
   updateQTable(prevX, prevY, action, reward);
   saveQTable();
   updateLearningRates();
-  alignWithIMU();
+  // Removed alignWithIMU() as requested
 }
 
 /***** Debug Visual Map *****/
